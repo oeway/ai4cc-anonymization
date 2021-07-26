@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>AI4CC Anonymization</title>
+</head>
+<body>
+
+<h1>AI4CC Anonymization</h1>
+<a href="https://mutiny.cz/exifr/" target="_blank">Check image EXIF info</a>
+<br>
+<button id="parseDirectory">Select Data Folder</button>
+<button id="exportDirectory">Export Data</button>
+<button onclick="clearLog()">Clear</button>
+<br>
+
+<p id="status"></p>
+<canvas id="canvas" style="height:200px;" ></canvas>
+<ul id="log">
+
+</ul>
+<script src="https://cdn.jsdelivr.net/npm/jimp@0.16.1/browser/lib/jimp.js"></script>
+<script type="module">
+
+import { get, set } from "https://unpkg.com/idb-keyval@5.0.2/dist/esm/index.js";
+
+
+window.clearLog = function(){
+  document.getElementById('log').innerHTML  = ""
+}
+
+
+function removeExif(data){
+    var dv = new DataView(data);
+    var offset = 0, recess = 0;
+    var pieces = [];
+    var i = 0;
+    if (dv.getUint16(offset) == 0xffd8){
+        offset += 2;
+        var app1 = dv.getUint16(offset);
+        offset += 2;
+        while (offset < dv.byteLength){
+            if (app1 == 0xffe1){
+                
+                pieces[i] = {recess:recess,offset:offset-2};
+                recess = offset + dv.getUint16(offset);
+                i++;
+            }
+            else if (app1 == 0xffda){
+                break;
+            }
+            offset += dv.getUint16(offset);
+            var app1 = dv.getUint16(offset);
+            offset += 2;
+        }
+        if (pieces.length > 0){
+            var newPieces = [];
+            pieces.forEach(function(v){
+                newPieces.push(data.slice(v.recess, v.offset));
+            }, this);
+            newPieces.push(data.slice(recess));
+            var br = new Blob(newPieces, {type: 'image/jpeg'})
+            return br;
+        }
+    }
+    else{
+      throw new Error("No exif info found")
+    }    
+}
+
+async function anonymizeJpegFile(file, newName){
+  if(!file.name.endsWith('.jpg') && !file.name.endsWith('.jpeg')) throw new Error("Please pass a jpeg file")
+  var fr = new FileReader();
+  await new Promise((resolve)=>{
+    
+    fr.onload = resolve;
+    fr.readAsArrayBuffer(file);
+  })
+  const newFile = new File([removeExif(fr.result)], newName + '.jpg' || file.name)
+  return newFile;
+}
+
+function loadAndDrawImage(url)
+{
+  return new Promise((resolve, reject)=>{
+    console.log(url)  
+    if(url instanceof Blob){
+        // Create a data URL from the image file
+        url = window.URL.createObjectURL(url);
+        
+    } 
+    
+    // Create an image object. This is not attached to the DOM and is not part of the page.
+    var image = new Image();
+
+    // When the image has loaded, draw it to the canvas
+    image.onload = function()
+    {
+      var canvas = document.getElementById("canvas");
+      canvas.width  = image.width;
+      canvas.height = image.height;
+      var context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0);
+      var imgData = context.getImageData(0,0,image.width,image.height);
+      resolve(imgData.data)
+    }
+    image.onerror = reject
+
+    // Now set the source of the image that we want to load
+    image.src = url;  
+  })
+
+}
+
+function getStandardDeviation (array) {
+  const n = array.length
+  const mean = array.reduce((a, b) => a + b) / n
+  return Math.sqrt(array.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b) / n)
+}
+
+function getChannelDiff(data){
+  let diffSum = 0;
+  const pixels = data.length/4; 
+  for(let i=0;i<pixels;i++){
+    diffSum += Math.abs(data[i] - data[i+1]) + Math.abs(data[i+1]- data[i+2]) +  Math.abs(data[i] - data[i+2])
+  }
+  return diffSum/pixels
+}
+
+function getRandomColor() {
+  var letters = '0123456789ABCDEF';
+  var color = '#';
+  for (var i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
+  }
+  return color + "3F";
+}
+
+async function anonymizeImage(file){
+  const url = window.URL.createObjectURL(file);
+  const image = await Jimp.read({
+    url
+  })
+  const anonymizedImage = await Jimp.create(image.bitmap.width, image.bitmap.height);
+  anonymizedImage.bitmap.data = image.bitmap.data;
+  const buffer = await anonymizedImage.getBufferAsync(Jimp.MIME_PNG)
+  const anonymizedFile = new File([new Blob([buffer])], file.name.split('.')[0] + '.png')
+  return anonymizedFile;
+}
+async function printFile(color, content, file){
+  document.getElementById('status').innerHTML = content;
+const li = document.createElement('li')
+  li.onclick=()=>{
+    loadAndDrawImage(file);
+  }
+  li.style.cursor = 'pointer'
+  li.innerHTML  = content
+  li.style.backgroundColor = color
+  document.getElementById('log').appendChild(li)
+}
+
+async function verifyPermission(fileHandle, readWrite) {
+  const options = {};
+  if (readWrite) {
+    options.mode = 'readwrite';
+  }
+  // Check if permission was already granted. If so, return true.
+  if ((await fileHandle.queryPermission(options)) === 'granted') {
+    return true;
+  }
+  // Request permission. If the user grants permission, return true.
+  if ((await fileHandle.requestPermission(options)) === 'granted') {
+    return true;
+  }
+  // The user didn't grant permission, so return false.
+  return false;
+}
+
+let patients = [];
+async function parseDir(dirHandle, prefix){
+  prefix = prefix || ""
+  const needGroup = prefix.split('/').length === 3
+  let files = []
+  for await (const entry of dirHandle.values()) {
+    if(entry.name.startsWith('.')) continue
+    // console.log(entry.kind, entry.name);
+    if(entry.kind === 'directory'){
+      // already grouped items
+      if(needGroup){
+        const images = []
+        const color = getRandomColor();
+        for await (const imgEntry of entry.values()) {
+          const file = await imgEntry.getFile()
+          file.originalPath = prefix+'/'+entry.name + '/' + imgEntry.name;
+          images.push(file)
+          
+          await printFile(color, `${patients.length} ==> ${file.lastModified}:${prefix}/${file.name}`, file)
+        }
+        patients.push(images)
+      }
+      else{
+        await parseDir(entry, prefix+'/'+entry.name)
+      }
+    }
+    else{
+      const file = await entry.getFile()
+      file.originalPath = prefix + '/' + entry.name;
+      if(needGroup) files.push(file)
+    }
+  }
+
+  files = files.sort((a, b) => a.lastModified - b.lastModified)
+  let patientFileBuffer = []
+  let color = getRandomColor();
+  for(let file of files){
+    patientFileBuffer.push(file)
+    const data = await loadAndDrawImage(file)
+    const diff = getChannelDiff(data)
+
+      // li.innerHTML  = JSON.stringify(sums) + '==>' + content
+      await printFile(color, `${patients.length} ==> ${file.lastModified}:${prefix}/${file.name}`, file)
+    if(diff<180){
+      // new patient found
+      patients.push(patientFileBuffer)
+      patientFileBuffer = []
+      color = getRandomColor();
+    }
+
+    
+  }
+  // add the last patient
+  if(patientFileBuffer.length>0) patients.push(patientFileBuffer)
+  return files;
+}
+
+const butDir = document.getElementById('parseDirectory');
+butDir.addEventListener('click', async () => {
+  let dirHandle;
+  dirHandle = await get('root');
+  if(!dirHandle || !await verifyPermission(dirHandle, 'readwrite'))  {
+    dirHandle = await window.showDirectoryPicker();
+    await set('root', dirHandle)
+  }
+  await parseDir(dirHandle)
+  alert(`Done! Identified ${patients.length} patients.`)
+});
+
+
+const exportDir = document.getElementById('exportDirectory');
+exportDir.addEventListener('click', async () => {
+  clearLog()
+  const resultDirHandle = await window.showDirectoryPicker();
+  await verifyPermission(resultDirHandle, 'readwrite')
+  const resultFileHandle = await resultDirHandle.getDirectoryHandle('result', {create: true});
+  let count = 0;
+
+  const mappingFileHandle = await resultFileHandle.getFileHandle('mapping.csv', {create: true})
+  const mapping = await mappingFileHandle.createWritable();
+  mapping.write(`original, anonymized\n`)
+  for(let patientFiles of patients){
+    const folderName = "patient-" + count;
+    const color = getRandomColor();
+    const patientFolder = await resultFileHandle.getDirectoryHandle(folderName, {create: true});
+    
+    let index=0
+    for(let file of patientFiles){
+      // verify exif here: https://mutiny.cz/exifr/
+      const newFile = await anonymizeJpegFile(file, 'image-'+index)
+      mapping.write(`${file.originalPath},${folderName}/${newFile.name}\n`)
+      await printFile(color, `${file.originalPath} ====>  ${folderName}/${newFile.name}\n`, newFile)
+      const outputHandle = await patientFolder.getFileHandle(newFile.name, {create: true})
+      // Create a FileSystemWritableFileStream to write to.
+      const writable = await outputHandle.createWritable();
+      // Write the contents of the file to the stream.
+      await writable.write(newFile);
+      // Close the file and write the contents to disk.
+      await writable.close();
+      index+=1;
+    }
+    count += 1;
+  }
+  mapping.close();
+  document.getElementById('status').innerHTML = 'Done!';
+  alert(`Done! All files exported!`)
+});
+
+
+</script>
+</body>
+</html>
