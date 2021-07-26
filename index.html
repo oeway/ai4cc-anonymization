@@ -3,14 +3,20 @@
 <head>
 <title>AI4CC Anonymization</title>
 </head>
-<body>
+<>
 
-<h1>AI4CC Anonymization (V0.1.3)</h1>
+<h1>AI4CC Anonymization (V0.1.4)</h1>
 <a href="https://mutiny.cz/exifr/" target="_blank">Check image EXIF info</a>
 <br>
 <button id="parseDirectory">Select Data Folder</button>
 <button id="exportDirectory">Export Data</button>
 <button onclick="clearLog()">Clear</button>
+
+<br>
+File size threshold:<input type="number" id="filesize-threshold" placeholder="3.5">
+<br>
+Time threshold:<input type="number" id="time-threshold" placeholder="10">
+
 <br>
 
 <p id="status"></p>
@@ -211,15 +217,19 @@ async function parseDir(dirHandle, prefix){
   files = files.sort((a, b) => a.lastModified - b.lastModified)
   let patientFileBuffer = []
   let color = getRandomColor();
-  let lastTime = file.lastModified
+  
+  const sizeThreshold = parseFloat(document.getElementById("filesize-threshold").value)*1000000;
+  const timeThreshold = parseFloat(document.getElementById("time-threshold").value)*60*1000;
+
   for(let file of files){
+    let lastTime = file.lastModified
     patientFileBuffer.push(file)
     // const data = await loadAndDrawImage(file)
     // const diff = getChannelDiff(data)
     const diff = Math.abs(lastTime-file.lastModified);
       // li.innerHTML  = JSON.stringify(sums) + '==>' + content
       await printFile(color, `${patients.length} ==> (${(diff/1000/60).toFixed(1)}min): (${file.size})/${file.lastModified}:${prefix}/${file.name}`, file)
-    if(file.size>3.5 || diff>10*60*1000){
+    if(file.size>sizeThreshold || diff>timeThreshold){
       // new patient found
       patients.push(patientFileBuffer)
       patientFileBuffer = []
