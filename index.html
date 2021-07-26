@@ -4,7 +4,7 @@
 <title>AI4CC Anonymization</title>
 </head>
 
-<h1>AI4CC Anonymization (V0.2.0)</h1>
+<h1>AI4CC Anonymization (V0.2.1)</h1>
 <a href="https://mutiny.cz/exifr/" target="_blank">Check image EXIF info</a>
 <br>
 <button id="parseDirectory">Select Data Folder</button>
@@ -194,6 +194,10 @@ async function parseDir(dirHandle, prefix){
         const images = []
         const color = getRandomColor();
         for await (const imgEntry of entry.values()) {
+            if(imgEntry.kind==='directory') {
+                debugger
+                continue
+            }
           const file = await imgEntry.getFile()
           file.originalPath = prefix+'/'+entry.name + '/' + imgEntry.name;
           images.push(file)
