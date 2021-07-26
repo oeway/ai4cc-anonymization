@@ -235,11 +235,11 @@ async function parseDir(dirHandle, prefix){
 const butDir = document.getElementById('parseDirectory');
 butDir.addEventListener('click', async () => {
   let dirHandle;
-  dirHandle = await get('root');
-  if(!dirHandle || !await verifyPermission(dirHandle, 'readwrite'))  {
+  //   dirHandle = await get('root');
+//   if(!dirHandle || !await verifyPermission(dirHandle, 'readwrite'))  {
     dirHandle = await window.showDirectoryPicker();
-    await set('root', dirHandle)
-  }
+//     await set('root', dirHandle)
+//   }
   await parseDir(dirHandle)
   alert(`Done! Identified ${patients.length} patients.`)
 });
