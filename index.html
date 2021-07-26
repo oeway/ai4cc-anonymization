@@ -4,7 +4,7 @@
 <title>AI4CC Anonymization</title>
 </head>
 
-<h1>AI4CC Anonymization (V0.1.9)</h1>
+<h1>AI4CC Anonymization (V0.2.0)</h1>
 <a href="https://mutiny.cz/exifr/" target="_blank">Check image EXIF info</a>
 <br>
 <button id="parseDirectory">Select Data Folder</button>
@@ -212,6 +212,7 @@ async function parseDir(dirHandle, prefix){
       if(needGroup) files.push(file)
     }
   }
+  if(files.length<=1) return files;
 
   files = files.sort((a, b) => a.lastModified - b.lastModified)
   let patientFileBuffer = []
@@ -237,8 +238,8 @@ async function parseDir(dirHandle, prefix){
     // const data = await loadAndDrawImage(file)
     // const diff = getChannelDiff(data)
     
-      // li.innerHTML  = JSON.stringify(sums) + '==>' + content
-      await printFile(color, `${patients.length} ==> (${(diff/1000/60).toFixed(1)}min): (${file.size})/${file.lastModified}:${prefix}/${file.name}`, file)
+    // li.innerHTML  = JSON.stringify(sums) + '==>' + content
+    await printFile(color, `${patients.length} ==> (${(diff/1000/60).toFixed(1)}min): (${file.size})/${file.lastModified}:${prefix}/${file.name}`, file)
 
     patientFileBuffer.push(file)
     
