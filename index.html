@@ -4,7 +4,7 @@
 <title>AI4CC Anonymization</title>
 </head>
 
-<h1>AI4CC Anonymization (V0.2.1)</h1>
+<h1>AI4CC Anonymization (V0.2.2)</h1>
 <a href="https://mutiny.cz/exifr/" target="_blank">Check image EXIF info</a>
 <br>
 <button id="parseDirectory">Select Data Folder</button>
@@ -185,6 +185,8 @@ async function parseDir(dirHandle, prefix){
   prefix = prefix || ""
   const needGroup = prefix.split('/').length === 3
   let files = []
+  const sizeThreshold = parseFloat(document.getElementById("filesize-threshold").value)*1000000;
+  const timeThreshold = parseFloat(document.getElementById("time-threshold").value)*60*1000;
   for await (const entry of dirHandle.values()) {
     if(entry.name.startsWith('.')) continue
     // console.log(entry.kind, entry.name);
@@ -192,18 +194,42 @@ async function parseDir(dirHandle, prefix){
       // already grouped items
       if(needGroup){
         const images = []
-        const color = getRandomColor();
+        let color = getRandomColor();
         for await (const imgEntry of entry.values()) {
             if(imgEntry.kind==='directory') {
-                debugger
+                color = getRandomColor();
+                const subImages = []
+                for await (const subImgEntry of imgEntry.values()) {
+                    if(subImgEntry.kind ==='directory'){
+                        debugger
+                        continue
+                    }
+                    const file = await subImgEntry.getFile()
+                    file.originalPath = prefix+'/'+entry.name + '/' + imgEntry.name + '/' + subImgEntry.name;
+                    if(file.size<=sizeThreshold){
+                        subImages.push(file)
+                        await printFile(color, `${patients.length} ==> ${file.lastModified}:${prefix}/${file.name}`, file)
+                    }
+                }
+                if(subImages.length>0)
+                patients.push(subImages)
+                color = getRandomColor();
                 continue
             }
-          const file = await imgEntry.getFile()
-          file.originalPath = prefix+'/'+entry.name + '/' + imgEntry.name;
-          images.push(file)
+            else{
+                const file = await imgEntry.getFile()
+                file.originalPath = prefix+'/'+entry.name + '/' + imgEntry.name;
+                if(file.size<=sizeThreshold){
+                    images.push(file)
+                    await printFile(color, `${patients.length} ==> ${file.lastModified}:${prefix}/${file.name}`, file)
+                }
+                
+            }
+    
           
-          await printFile(color, `${patients.length} ==> ${file.lastModified}:${prefix}/${file.name}`, file)
+          
         }
+        if(images.length>0)
         patients.push(images)
       }
       else{
@@ -222,8 +248,7 @@ async function parseDir(dirHandle, prefix){
   let patientFileBuffer = []
   let color = getRandomColor();
   
-  const sizeThreshold = parseFloat(document.getElementById("filesize-threshold").value)*1000000;
-  const timeThreshold = parseFloat(document.getElementById("time-threshold").value)*60*1000;
+
   let lastTime = files[0].lastModified
   for(let file of files){
     if(file.size>sizeThreshold){
