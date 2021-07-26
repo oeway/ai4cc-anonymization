@@ -3,9 +3,8 @@
 <head>
 <title>AI4CC Anonymization</title>
 </head>
-<>
 
-<h1>AI4CC Anonymization (V0.1.5)</h1>
+<h1>AI4CC Anonymization (V0.1.6)</h1>
 <a href="https://mutiny.cz/exifr/" target="_blank">Check image EXIF info</a>
 <br>
 <button id="parseDirectory">Select Data Folder</button>
@@ -222,7 +221,7 @@ async function parseDir(dirHandle, prefix){
   const timeThreshold = parseFloat(document.getElementById("time-threshold").value)*60*1000;
   let lastTime = files[0].lastModified
   for(let file of files){
-    
+    if(file.size<sizeThreshold)
     patientFileBuffer.push(file)
     // const data = await loadAndDrawImage(file)
     // const diff = getChannelDiff(data)
@@ -231,6 +230,7 @@ async function parseDir(dirHandle, prefix){
       await printFile(color, `${patients.length} ==> (${(diff/1000/60).toFixed(1)}min): (${file.size})/${file.lastModified}:${prefix}/${file.name}`, file)
     if(file.size>sizeThreshold || diff>timeThreshold){
       // new patient found
+      if(patientFileBuffer.length>0)
       patients.push(patientFileBuffer)
       patientFileBuffer = []
       color = getRandomColor();
