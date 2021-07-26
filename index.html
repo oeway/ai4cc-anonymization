@@ -4,7 +4,7 @@
 <title>AI4CC Anonymization</title>
 </head>
 
-<h1>AI4CC Anonymization (V0.1.8)</h1>
+<h1>AI4CC Anonymization (V0.1.9)</h1>
 <a href="https://mutiny.cz/exifr/" target="_blank">Check image EXIF info</a>
 <br>
 <button id="parseDirectory">Select Data Folder</button>
@@ -221,10 +221,10 @@ async function parseDir(dirHandle, prefix){
   const timeThreshold = parseFloat(document.getElementById("time-threshold").value)*60*1000;
   let lastTime = files[0].lastModified
   for(let file of files){
-    if(file.size<sizeThreshold){
+    if(file.size>sizeThreshold){
         continue
     }
-    
+
     const diff = Math.abs(lastTime-file.lastModified);
     if(diff>timeThreshold){
       // new patient found
